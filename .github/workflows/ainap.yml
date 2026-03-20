@@ -121,21 +121,22 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # 実行中の DB を退避（ブランチ切替で消えるため）
+          cp data/ainap.db /tmp/ainap.db
+
           # data ブランチを準備
           if git ls-remote --heads origin data | grep -q data; then
             git fetch origin data
-            git checkout data
+            git checkout --no-guess data
           else
             # orphan ブランチとして作成（コード履歴と分離）
             git checkout --orphan data
             git rm -rf . 2>/dev/null || true
           fi
 
-          # DB ファイルをコピーしてコミット
+          # 退避した DB を配置
           mkdir -p data
-          git checkout main -- data/ainap.db 2>/dev/null || true
-          # ワーキングツリーから最新の DB をコピー
-          cp "$GITHUB_WORKSPACE/data/ainap.db" data/ainap.db 2>/dev/null || true
+          cp /tmp/ainap.db data/ainap.db
 
           git add data/ainap.db
           if git diff --cached --quiet; then
