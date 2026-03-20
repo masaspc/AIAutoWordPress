@@ -124,14 +124,12 @@ jobs:
           # 実行中の DB を退避（ブランチ切替で消えるため）
           cp data/ainap.db /tmp/ainap.db
 
-          # data ブランチを準備
+          # data ブランチを準備（git switch はパスとの曖昧性なし）
           if git ls-remote --heads origin data | grep -q data; then
             git fetch origin data
-            git checkout -B data origin/data --
+            git switch -C data origin/data
           else
-            # orphan ブランチとして作成（コード履歴と分離）
-            git checkout --orphan data
-            git rm -rf . 2>/dev/null || true
+            git switch --orphan data
           fi
 
           # 退避した DB を配置
