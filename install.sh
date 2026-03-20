@@ -7,6 +7,7 @@ set -euo pipefail
 
 INSTALL_DIR="/opt/ainap"
 SERVICE_USER="ainap"
+REPO_URL="${1:-}"  # 第1引数でリポジトリURL指定可能
 
 # 色付き出力
 RED='\033[0;31m'
@@ -50,26 +51,37 @@ else
 fi
 
 # =============================================================
-# 3. プロジェクトデプロイ
+# 3. プロジェクトデプロイ（GitHub からクローン）
 # =============================================================
 if [[ -d "$INSTALL_DIR/.git" ]]; then
-    info "既存インストールを検出。更新します..."
+    info "既存インストールを検出。最新版に更新します..."
     cd "$INSTALL_DIR"
-    sudo -u "$SERVICE_USER" git pull || true
+    sudo -u "$SERVICE_USER" git pull origin main || true
 else
-    info "プロジェクトをデプロイ中..."
-    # ソースファイルをコピー（git clone の代わりにローカルコピー）
-    if [[ -d "/home/user/AIAutoWordPress/.git" ]]; then
-        # 開発環境からコピー
-        mkdir -p "$INSTALL_DIR"
-        cp -r /home/user/AIAutoWordPress/{src,config,systemd,pyproject.toml,Makefile} "$INSTALL_DIR/"
-        mkdir -p "$INSTALL_DIR"/{data/queue,logs}
-        chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
-    else
+    # リポジトリURLが引数で渡されていなければ入力を求める
+    if [[ -z "$REPO_URL" ]]; then
         echo ""
-        read -rp "Git リポジトリ URL を入力してください: " REPO_URL
-        sudo -u "$SERVICE_USER" git clone "$REPO_URL" "$INSTALL_DIR"
+        read -rp "GitHub リポジトリ URL (例: https://github.com/user/AIAutoWordPress.git): " REPO_URL
     fi
+
+    if [[ -z "$REPO_URL" ]]; then
+        error "リポジトリURLが指定されていません"
+        exit 1
+    fi
+
+    info "GitHub からクローン中: $REPO_URL"
+    # INSTALL_DIR が既存の場合（useraddで作成済み）は一時ディレクトリ経由
+    if [[ -d "$INSTALL_DIR" ]]; then
+        TMP_CLONE=$(mktemp -d)
+        git clone "$REPO_URL" "$TMP_CLONE/ainap"
+        cp -a "$TMP_CLONE/ainap/." "$INSTALL_DIR/"
+        rm -rf "$TMP_CLONE"
+    else
+        git clone "$REPO_URL" "$INSTALL_DIR"
+    fi
+
+    mkdir -p "$INSTALL_DIR"/{data/queue,logs}
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
 fi
 
 # =============================================================
