@@ -10,6 +10,8 @@ Group=ainap
 WorkingDirectory=/opt/ainap
 ExecStart=/opt/ainap/venv/bin/python -m src.main
 Environment=PYTHONUNBUFFERED=1
+Environment=MALLOC_ARENA_MAX=2
+Environment=MALLOC_TRIM_THRESHOLD_=65536
 EnvironmentFile=/opt/ainap/.env
 
 # リソース制限（512MB保護）
@@ -20,6 +22,8 @@ CPUQuota=80%
 # セキュリティ
 NoNewPrivileges=true
 ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
 ReadWritePaths=/opt/ainap/data /opt/ainap/logs
 
 [Install]
