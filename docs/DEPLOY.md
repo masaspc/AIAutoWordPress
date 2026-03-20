@@ -14,7 +14,7 @@ ConoHa VPS 512MB / Ubuntu 24.04 LTS への詳細デプロイ手順
 | Anthropic API Key | `sk-ant-api03-...` 形式 | https://console.anthropic.com/settings/keys |
 | WordPress サイト | HTTPS有効・REST API有効 | 自前 or レンタルサーバー |
 | WP Application Password | WordPress認証用 | WP管理画面 → ユーザー → アプリケーションパスワード |
-| Gmail アプリパスワード | SMTP通知用（任意） | Google アカウント → セキュリティ → アプリパスワード |
+| Discord Webhook URL | 通知用（任意） | Discordサーバー設定 → 連携サービス → ウェブフック |
 
 ---
 
@@ -104,7 +104,7 @@ sudo bash install.sh https://github.com/masaspc/AIAutoWordPress.git
 ```
 
 > **注**: install.sh は以下を自動実行します:
-> - python3-venv, msmtp, git のインストール
+> - python3-venv, git のインストール
 > - `ainap` 専用ユーザーの作成
 > - `/opt/ainap` へのデプロイ
 > - Python仮想環境のセットアップ
@@ -145,21 +145,18 @@ WordPress Application Password: xxxx xxxx xxxx xxxx xxxx xxxx
 >    curl -s https://your-site.com/wp-json/wp/v2/ | head -c 200
 >    ```
 
-### 3-3. メール通知設定（Gmail の場合）
+### 3-3. Discord 通知設定
 
 ```
-SMTP ホスト [smtp.gmail.com]: (Enterでデフォルト)
-SMTP ポート [587]: (Enterでデフォルト)
-SMTP ユーザー (メールアドレス): your-email@gmail.com
-SMTP パスワード (アプリパスワード推奨): xxxx xxxx xxxx xxxx
-通知先メールアドレス: your-email@gmail.com
+Discord Webhook URL: https://discord.com/api/webhooks/xxxx/xxxx
 ```
 
-> **Gmail アプリパスワードの取得方法**:
-> 1. https://myaccount.google.com/security
-> 2. 「2段階認証」を有効化（まだの場合）
-> 3. 「アプリ パスワード」→ アプリ名: `AINAP` → 生成
-> 4. 表示された16文字のパスワードを入力
+> **Discord Webhook URL の取得方法**:
+> 1. Discord で通知を受け取りたいサーバーを開く
+> 2. チャンネルの「設定（歯車アイコン）」→「連携サービス」
+> 3. 「ウェブフック」→「新しいウェブフック」
+> 4. 名前を `AINAP` に設定
+> 5. 「ウェブフックURLをコピー」をクリック
 
 ---
 
@@ -415,7 +412,7 @@ sudo -u ainap rm -f /opt/ainap/data/queue/*.json
 |------|------|
 | ConoHa VPS 512MB（まとめトク1ヶ月） | ¥460 |
 | Claude API (Sonnet, ~150記事/月) | ¥2,200〜3,700 ($15〜25) |
-| Gmail SMTP | ¥0 |
+| Discord 通知 | ¥0 |
 | **合計** | **¥2,700〜4,200** |
 
 ---
@@ -437,11 +434,7 @@ VPS管理が不要になり、インフラコストは ¥0 です。
 | `WP_BASE_URL` | `https://your-wordpress-site.com` |
 | `WP_USERNAME` | `ainap-bot` |
 | `WP_APP_PASSWORD` | WordPress Application Password |
-| `SMTP_HOST` | `smtp.gmail.com` |
-| `SMTP_PORT` | `587` |
-| `SMTP_USER` | `your-email@gmail.com` |
-| `SMTP_PASSWORD` | Gmail アプリパスワード |
-| `NOTIFY_EMAIL` | `your-email@gmail.com` |
+| `DISCORD_WEBHOOK_URL` | Discord Webhook URL |
 
 #### 2. ワークフロー確認
 
