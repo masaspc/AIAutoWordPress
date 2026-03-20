@@ -26,6 +26,7 @@ from .generator import generate_article
 from .notifier import (
     notify_dead_letter,
     notify_error,
+    notify_pipeline_complete,
     notify_success,
     send_daily_summary,
 )
@@ -199,7 +200,16 @@ async def run_pipeline() -> None:
         if result:
             published_count += 1
 
+    failed_count = len(unprocessed) - published_count
     logger.info("投稿完了: %d / %d 記事", published_count, len(unprocessed))
+
+    # パイプライン完了通知（毎回送信）
+    notify_pipeline_complete(
+        collected=len(collected),
+        published=published_count,
+        failed=failed_count,
+        retried=len(retry_items),
+    )
 
     # 日次サマリー（21:00 JST 実行時）
     notification_cfg = settings.get("notification", {})

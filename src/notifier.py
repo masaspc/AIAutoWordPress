@@ -84,6 +84,25 @@ def notify_dead_letter(article_title: str, error_msg: str) -> bool:
     return _send_discord("[AINAP] Dead Letter Queue", description, color=0xFF8C00)
 
 
+def notify_pipeline_complete(
+    collected: int, published: int, failed: int, retried: int
+) -> bool:
+    """パイプライン完了通知（毎回送信）"""
+    description = (
+        f"**収集**: {collected} 件\n"
+        f"**投稿**: {published} 件\n"
+        f"**失敗**: {failed} 件\n"
+        f"**リトライ**: {retried} 件\n"
+    )
+    if published > 0:
+        color = 0x00FF00  # green
+    elif failed > 0:
+        color = 0xFF8C00  # orange
+    else:
+        color = 0x95A5A6  # gray
+    return _send_discord("[AINAP] パイプライン完了", description, color=color)
+
+
 def send_daily_summary(posts: list[dict]) -> bool:
     """日次サマリー"""
     if not posts:
