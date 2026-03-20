@@ -409,7 +409,7 @@ sudo -u ainap rm -f /opt/ainap/data/queue/*.json
 
 ---
 
-## 月額コスト概算
+## 月額コスト概算（ConoHa VPS）
 
 | 項目 | 月額 |
 |------|------|
@@ -417,3 +417,76 @@ sudo -u ainap rm -f /opt/ainap/data/queue/*.json
 | Claude API (Sonnet, ~150記事/月) | ¥2,200〜3,700 ($15〜25) |
 | Gmail SMTP | ¥0 |
 | **合計** | **¥2,700〜4,200** |
+
+---
+
+## 代替デプロイ: GitHub Actions（VPS不要・¥0）
+
+ConoHa VPS の代わりに GitHub Actions で定期実行できます。
+VPS管理が不要になり、インフラコストは ¥0 です。
+
+### GitHub Actions セットアップ手順
+
+#### 1. GitHub Secrets の登録
+
+リポジトリの **Settings → Secrets and variables → Actions → New repository secret** で以下を登録:
+
+| Secret 名 | 値 |
+|---|---|
+| `ANTHROPIC_API_KEY` | `sk-ant-api03-...` |
+| `WP_BASE_URL` | `https://your-wordpress-site.com` |
+| `WP_USERNAME` | `ainap-bot` |
+| `WP_APP_PASSWORD` | WordPress Application Password |
+| `SMTP_HOST` | `smtp.gmail.com` |
+| `SMTP_PORT` | `587` |
+| `SMTP_USER` | `your-email@gmail.com` |
+| `SMTP_PASSWORD` | Gmail アプリパスワード |
+| `NOTIFY_EMAIL` | `your-email@gmail.com` |
+
+#### 2. ワークフロー確認
+
+`.github/workflows/ainap.yml` がリポジトリに含まれています。
+main ブランチに push すると自動でスケジュールが有効になります。
+
+#### 3. 手動実行テスト
+
+1. GitHub → **Actions** タブ
+2. 左メニュー「AINAP Pipeline」を選択
+3. **Run workflow** ボタンをクリック
+4. 実行ログを確認
+
+#### 4. スケジュール
+
+| JST | UTC (cron) | 説明 |
+|-----|------------|------|
+| 07:00 | `0 22 * * *` (前日) | 朝の実行 |
+| 10:00 | `0 1 * * *` | 午前の実行 |
+| 13:00 | `0 4 * * *` | 昼の実行 |
+| 17:00 | `0 8 * * *` | 夕方の実行 |
+| 21:00 | `0 12 * * *` | 夜の実行 |
+
+> **注**: GitHub Actions の cron は最大で数分の遅延が発生する場合があります。
+
+#### 5. DB の永続化方式
+
+SQLite データベースは `data` ブランチ（orphan）に自動保存されます:
+
+- 毎回実行前: `data` ブランチから `data/ainap.db` を復元
+- 毎回実行後: 更新された DB を `data` ブランチにコミット
+- コード履歴とは完全に分離（orphan ブランチ）
+
+#### 6. ログの確認
+
+- **リアルタイム**: Actions タブ → 実行中のワークフロー → ログ
+- **過去ログ**: Artifacts に 14 日間保存
+
+#### 7. コスト比較
+
+| 項目 | ConoHa VPS | GitHub Actions |
+|------|-----------|---------------|
+| インフラ | ¥460/月 | ¥0 |
+| Claude API | ¥2,200〜3,700 | ¥2,200〜3,700 |
+| **合計** | **¥2,700〜4,200** | **¥2,200〜3,700** |
+
+> プライベートリポジトリの場合、月 2,000 分の無料枠があります。
+> AINAP は 1 回あたり約 2〜3 分 → 月 150 回 = 約 450 分で余裕です。

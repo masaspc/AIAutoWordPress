@@ -1,0 +1,162 @@
+# =============================================================
+# AINAP - GitHub Actions ワークフロー
+#
+# ConoHa VPS の代わりに GitHub Actions で定期実行する
+# スケジュール: 毎日 7:00, 10:00, 13:00, 17:00, 21:00 (JST)
+# =============================================================
+name: AINAP Pipeline
+
+on:
+  schedule:
+    # cron は UTC 指定 → JST -9時間
+    - cron: "0 22 * * *"   # JST 07:00 (前日 UTC 22:00)
+    - cron: "0 1 * * *"    # JST 10:00
+    - cron: "0 4 * * *"    # JST 13:00
+    - cron: "0 8 * * *"    # JST 17:00
+    - cron: "0 12 * * *"   # JST 21:00
+  workflow_dispatch:        # 手動実行ボタン
+
+# 同時実行防止（多重起動ガード）
+concurrency:
+  group: ainap-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: write  # DB コミット用
+
+env:
+  TZ: Asia/Tokyo
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # ----------------------------------------------------------
+      # 1. チェックアウト（DB ブランチの履歴も含む）
+      # ----------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # DB ブランチの取得に必要
+
+      # ----------------------------------------------------------
+      # 2. SQLite DB の復元（data ブランチから）
+      # ----------------------------------------------------------
+      - name: Restore database from data branch
+        run: |
+          mkdir -p data/queue logs
+
+          # data ブランチが存在すれば DB を復元
+          if git ls-remote --heads origin data | grep -q data; then
+            git fetch origin data
+            git checkout origin/data -- data/ainap.db 2>/dev/null || echo "No existing DB found"
+          fi
+
+          # DB ファイルの有無を確認
+          if [ -f data/ainap.db ]; then
+            echo "✓ Database restored ($(du -h data/ainap.db | cut -f1))"
+          else
+            echo "✓ Fresh start - database will be created"
+          fi
+
+      # ----------------------------------------------------------
+      # 3. Python セットアップ
+      # ----------------------------------------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: pip install -e .
+
+      # ----------------------------------------------------------
+      # 4. .env ファイル生成（GitHub Secrets から）
+      # ----------------------------------------------------------
+      - name: Create .env file
+        run: |
+          cat > .env <<'ENVEOF'
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          WP_BASE_URL=${{ secrets.WP_BASE_URL }}
+          WP_USERNAME=${{ secrets.WP_USERNAME }}
+          WP_APP_PASSWORD=${{ secrets.WP_APP_PASSWORD }}
+          SMTP_HOST=${{ secrets.SMTP_HOST }}
+          SMTP_PORT=${{ secrets.SMTP_PORT }}
+          SMTP_USER=${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
+          NOTIFY_EMAIL=${{ secrets.NOTIFY_EMAIL }}
+          ENVEOF
+
+          # 各行の先頭スペースを除去
+          sed -i 's/^[[:space:]]*//' .env
+
+      # ----------------------------------------------------------
+      # 5. パイプライン実行
+      # ----------------------------------------------------------
+      - name: Run AINAP pipeline
+        run: python -m src.main
+        env:
+          PYTHONUNBUFFERED: "1"
+          MALLOC_ARENA_MAX: "2"
+
+      # ----------------------------------------------------------
+      # 6. SQLite DB を data ブランチに保存
+      # ----------------------------------------------------------
+      - name: Save database to data branch
+        if: always()  # エラー時もDBを保存
+        run: |
+          # DB が存在しない場合はスキップ
+          if [ ! -f data/ainap.db ]; then
+            echo "No database to save"
+            exit 0
+          fi
+
+          # git 設定
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # data ブランチを準備
+          if git ls-remote --heads origin data | grep -q data; then
+            git fetch origin data
+            git checkout data
+          else
+            # orphan ブランチとして作成（コード履歴と分離）
+            git checkout --orphan data
+            git rm -rf . 2>/dev/null || true
+          fi
+
+          # DB ファイルをコピーしてコミット
+          mkdir -p data
+          git checkout main -- data/ainap.db 2>/dev/null || true
+          # ワーキングツリーから最新の DB をコピー
+          cp "$GITHUB_WORKSPACE/data/ainap.db" data/ainap.db 2>/dev/null || true
+
+          git add data/ainap.db
+          if git diff --cached --quiet; then
+            echo "No database changes to commit"
+          else
+            git commit -m "Update database $(date +'%Y-%m-%d %H:%M JST')"
+            git push origin data
+            echo "✓ Database saved to data branch"
+          fi
+
+      # ----------------------------------------------------------
+      # 7. 実行ログをアーティファクトとして保存
+      # ----------------------------------------------------------
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ainap-logs-${{ github.run_number }}
+          path: logs/
+          retention-days: 14
