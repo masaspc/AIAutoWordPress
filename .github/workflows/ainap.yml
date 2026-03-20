@@ -127,7 +127,7 @@ jobs:
           # data ブランチを準備
           if git ls-remote --heads origin data | grep -q data; then
             git fetch origin data
-            git checkout --no-guess data
+            git checkout -B data origin/data --
           else
             # orphan ブランチとして作成（コード履歴と分離）
             git checkout --orphan data
