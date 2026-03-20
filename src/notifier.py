@@ -20,6 +20,10 @@ def _send_discord(title: str, description: str, color: int = 0x00FF00) -> bool:
         logger.warning("DISCORD_WEBHOOK_URL が未設定のため通知をスキップ")
         return False
 
+    if not webhook_url or not webhook_url.startswith("https://"):
+        logger.error("DISCORD_WEBHOOK_URL が無効です: '%s'", webhook_url[:20] if webhook_url else "(empty)")
+        return False
+
     embed = {
         "title": title,
         "description": description,

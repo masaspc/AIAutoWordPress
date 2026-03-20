@@ -96,6 +96,16 @@ jobs:
           # 各行の先頭スペースを除去
           sed -i 's/^[[:space:]]*//' .env
 
+          # .env のキー一覧を表示（値は非表示）
+          echo "=== .env keys ==="
+          grep -oP '^[A-Z_]+' .env || true
+          echo "=== DISCORD_WEBHOOK_URL set? ==="
+          if grep -q 'DISCORD_WEBHOOK_URL=.' .env; then
+            echo "YES (length: $(grep DISCORD_WEBHOOK_URL .env | cut -d= -f2- | wc -c))"
+          else
+            echo "NO or EMPTY"
+          fi
+
       # ----------------------------------------------------------
       # 5. パイプライン実行
       # ----------------------------------------------------------
