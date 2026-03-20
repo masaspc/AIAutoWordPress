@@ -1,0 +1,45 @@
+# ===== AINAP sources.yaml =====
+sources:
+  - name: "TechCrunch"
+    url: "https://techcrunch.com/category/artificial-intelligence/"
+    selectors:
+      article_list: "article.post-block"
+      title: "h2 a"
+      link: "h2 a[href]"
+      date: "time[datetime]"
+      body: ".article-content p"
+    category_map: "AIニュース"
+    enabled: true
+
+  - name: "The Verge"
+    url: "https://www.theverge.com/ai-artificial-intelligence"
+    selectors:
+      article_list: "div.duet--content-cards--content-card"
+      title: "a h2"
+      link: "a[href]"
+      date: "time[datetime]"
+      body: ".duet--article--article-body-component p"
+    category_map: "AIニュース"
+    enabled: true
+
+  - name: "VentureBeat"
+    url: "https://venturebeat.com/category/ai/"
+    selectors:
+      article_list: "article"
+      title: "h2 a"
+      link: "h2 a[href]"
+      date: "time[datetime]"
+      body: ".article-content p"
+    category_map: "AIニュース"
+    enabled: true
+
+  - name: "Publickey"
+    url: "https://www.publickey1.jp/"
+    selectors:
+      article_list: ".post"
+      title: "h2.entry-title a"
+      link: "h2.entry-title a[href]"
+      date: ".entry-date"
+      body: ".entry-content p"
+    category_map: "テックニュース"
+    enabled: true

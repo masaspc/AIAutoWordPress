@@ -1,0 +1,52 @@
+# ===== AINAP settings.yaml =====
+
+# --- Claude API ---
+claude:
+  model: "claude-sonnet-4-20250514"
+  max_tokens: 4096
+  temperature: 0.7
+  timeout_sec: 60
+  max_retries: 3
+
+# --- スクレイピング ---
+scraper:
+  request_interval_min: 3
+  request_interval_max: 8
+  max_articles_per_source: 5
+  body_max_chars: 2000
+  respect_robots_txt: true
+  user_agents:
+    - "Mozilla/5.0 (compatible; AINAP/1.0; +https://example.com)"
+
+# --- 記事生成 ---
+generator:
+  article_min_chars: 800
+  article_max_chars: 3000
+  language: "ja"
+  include_disclaimer: true
+  include_source_link: true
+
+# --- WordPress投稿 ---
+wordpress:
+  post_status: "publish"
+  default_category_id: 1
+  auto_create_tags: true
+  custom_field_ai_flag: true
+
+# --- スケジュール ---
+schedule:
+  max_posts_per_run: 1
+  timezone: "Asia/Tokyo"
+
+# --- ログ ---
+logging:
+  level: "INFO"
+  format: "json"
+  rotation_days: 7
+  max_size_mb: 50
+
+# --- 通知 ---
+notification:
+  on_success: true
+  on_error: true
+  daily_summary: true
