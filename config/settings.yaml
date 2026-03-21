@@ -20,7 +20,7 @@ scraper:
 
 # --- 記事生成 ---
 generator:
-  article_min_chars: 800
+  article_min_chars: 600
   article_max_chars: 3000
   language: "ja"
   include_disclaimer: true
