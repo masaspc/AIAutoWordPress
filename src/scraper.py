@@ -1,10 +1,13 @@
-"""ニュース収集モジュール（httpx + BeautifulSoup4）"""
+"""ニュース収集モジュール（RSS 優先 + HTML フォールバック）"""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 import random
+import re
+import xml.etree.ElementTree as ET
+from html import unescape
 from urllib.parse import urljoin, urlparse
 from urllib.robotparser import RobotFileParser
 
@@ -56,6 +59,119 @@ async def _fetch_page(client: httpx.AsyncClient, url: str) -> str:
     return resp.text
 
 
+def _strip_html_tags(text: str) -> str:
+    """HTML タグを除去してプレーンテキストにする"""
+    text = unescape(text)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def _parse_rss_items(xml_text: str, max_articles: int) -> list[dict]:
+    """RSS/Atom フィードをパースして記事リストを返す"""
+    items = []
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError as e:
+        logger.warning("RSS パース失敗: %s", e)
+        return []
+
+    # 名前空間を除去してタグ名を簡略化
+    ns_map = {
+        "http://www.w3.org/2005/Atom": "atom",
+        "http://purl.org/dc/elements/1.1/": "dc",
+        "http://purl.org/rss/1.0/modules/content/": "content",
+    }
+
+    # RSS 2.0: channel/item
+    for item in root.iter("item"):
+        title_el = item.find("title")
+        link_el = item.find("link")
+        pub_date_el = item.find("pubDate")
+        # content:encoded or description for body
+        body_el = item.find("{http://purl.org/rss/1.0/modules/content/}encoded")
+        if body_el is None:
+            body_el = item.find("description")
+
+        if title_el is None or link_el is None:
+            continue
+
+        title = (title_el.text or "").strip()
+        link = (link_el.text or "").strip()
+        if not title or not link:
+            continue
+
+        body = ""
+        if body_el is not None and body_el.text:
+            body = _strip_html_tags(body_el.text)
+
+        pub_date = ""
+        if pub_date_el is not None and pub_date_el.text:
+            pub_date = pub_date_el.text.strip()
+
+        items.append({
+            "title": title,
+            "url": link,
+            "published_at": pub_date,
+            "body": body,
+        })
+
+        if len(items) >= max_articles:
+            break
+
+    # Atom: feed/entry
+    if not items:
+        atom_ns = "http://www.w3.org/2005/Atom"
+        for entry in root.iter(f"{{{atom_ns}}}entry"):
+            title_el = entry.find(f"{{{atom_ns}}}title")
+            # Atom link: <link rel="alternate" href="..."/>
+            link_el = None
+            for link_candidate in entry.findall(f"{{{atom_ns}}}link"):
+                rel = link_candidate.get("rel", "alternate")
+                if rel == "alternate":
+                    link_el = link_candidate
+                    break
+            if link_el is None:
+                # fallback: first link
+                link_el = entry.find(f"{{{atom_ns}}}link")
+
+            pub_date_el = entry.find(f"{{{atom_ns}}}published")
+            if pub_date_el is None:
+                pub_date_el = entry.find(f"{{{atom_ns}}}updated")
+
+            body_el = entry.find(f"{{{atom_ns}}}content")
+            if body_el is None:
+                body_el = entry.find(f"{{{atom_ns}}}summary")
+
+            if title_el is None or link_el is None:
+                continue
+
+            title = (title_el.text or "").strip()
+            link = link_el.get("href", "").strip()
+            if not title or not link:
+                continue
+
+            body = ""
+            if body_el is not None and body_el.text:
+                body = _strip_html_tags(body_el.text)
+
+            pub_date = ""
+            if pub_date_el is not None and pub_date_el.text:
+                pub_date = pub_date_el.text.strip()
+
+            items.append({
+                "title": title,
+                "url": link,
+                "published_at": pub_date,
+                "body": body,
+            })
+
+            if len(items) >= max_articles:
+                break
+
+    return items
+
+
 async def _fetch_article_body(
     client: httpx.AsyncClient,
     article_url: str,
@@ -79,7 +195,7 @@ async def _fetch_article_body(
 
 
 async def scrape_source(source: dict, settings: dict) -> list[dict]:
-    """単一ソースからニュース記事を収集"""
+    """単一ソースからニュース記事を収集（RSS 優先）"""
     scraper_cfg = settings.get("scraper", {})
     user_agent = _get_user_agent(settings)
     interval = (
@@ -92,7 +208,8 @@ async def scrape_source(source: dict, settings: dict) -> list[dict]:
 
     source_name = source["name"]
     source_url = source["url"]
-    selectors = source["selectors"]
+    feed_url = source.get("feed_url")
+    selectors = source.get("selectors", {})
     category = source.get("category_map", "")
 
     if respect_robots:
@@ -107,14 +224,84 @@ async def scrape_source(source: dict, settings: dict) -> list[dict]:
     async with httpx.AsyncClient(
         headers=headers, timeout=30.0, follow_redirects=True
     ) as client:
+
+        # === RSS フィードから収集（優先） ===
+        if feed_url:
+            try:
+                xml_text = await _fetch_page(client, feed_url)
+                rss_items = _parse_rss_items(xml_text, max_articles)
+                logger.info("[%s] RSS から %d 件取得", source_name, len(rss_items))
+
+                for item in rss_items:
+                    article_url = item["url"]
+
+                    # 重複チェック
+                    if db.is_url_exists(article_url):
+                        logger.debug("重複スキップ: %s", article_url)
+                        continue
+
+                    # RSS の本文が短い場合、個別ページから取得
+                    body = item.get("body", "")
+                    if len(body) < 200 and selectors.get("body"):
+                        fetched_body = await _fetch_article_body(
+                            client, article_url, selectors["body"],
+                            max_chars, interval,
+                        )
+                        if fetched_body:
+                            body = fetched_body
+
+                    body = body[:max_chars] if body else None
+
+                    # DB 保存
+                    try:
+                        article_id = db.save_article(
+                            url=article_url,
+                            title=item["title"],
+                            source_name=source_name,
+                            body=body,
+                            published_at=item.get("published_at"),
+                            category=category,
+                        )
+                        collected.append({
+                            "id": article_id,
+                            "url": article_url,
+                            "title": item["title"],
+                            "source_name": source_name,
+                            "body": body,
+                            "category": category,
+                        })
+                        logger.info("収集完了: [%s] %s", source_name, item["title"])
+                    except Exception:
+                        logger.warning("記事保存失敗: %s", article_url, exc_info=True)
+
+                    await asyncio.sleep(random.uniform(*interval))
+
+                # RSS で記事が取れたらここで返す
+                if collected or rss_items:
+                    return collected
+
+            except Exception:
+                logger.warning(
+                    "[%s] RSS 取得失敗、HTML フォールバックへ",
+                    source_name,
+                    exc_info=True,
+                )
+
+        # === HTML スクレイピング（フォールバック） ===
+        if not selectors.get("article_list"):
+            logger.warning("[%s] HTML セレクタ未定義、スキップ", source_name)
+            return collected
+
         try:
             html = await _fetch_page(client, source_url)
         except Exception:
             logger.error("一覧ページ取得失敗: %s", source_url, exc_info=True)
-            return []
+            return collected
 
         soup = BeautifulSoup(html, "lxml")
         articles = soup.select(selectors["article_list"])
+        logger.info("[%s] HTML セレクタ '%s' で %d 件ヒット",
+                     source_name, selectors["article_list"], len(articles))
 
         for article_el in articles[:max_articles]:
             # タイトル取得
