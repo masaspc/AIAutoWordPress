@@ -38,7 +38,7 @@ info "===== AINAP インストーラ ====="
 # =============================================================
 info "システムパッケージをインストール中..."
 apt-get update -qq
-apt-get install -y -qq python3-venv python3-pip msmtp git
+apt-get install -y -qq python3-venv python3-pip git
 
 # =============================================================
 # 2. 専用ユーザー作成
@@ -121,16 +121,10 @@ if [[ "${SKIP_ENV:-}" != "true" ]]; then
     read -rp "WordPress ユーザー名: " WP_USERNAME
     read -rp "WordPress Application Password: " WP_APP_PASSWORD
 
-    # SMTP
+    # Discord
     echo ""
-    info "--- メール通知設定 ---"
-    read -rp "SMTP ホスト [smtp.gmail.com]: " SMTP_HOST
-    SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
-    read -rp "SMTP ポート [587]: " SMTP_PORT
-    SMTP_PORT=${SMTP_PORT:-587}
-    read -rp "SMTP ユーザー (メールアドレス): " SMTP_USER
-    read -rp "SMTP パスワード (アプリパスワード推奨): " SMTP_PASSWORD
-    read -rp "通知先メールアドレス: " NOTIFY_EMAIL
+    info "--- Discord 通知設定 ---"
+    read -rp "Discord Webhook URL: " DISCORD_WEBHOOK_URL
 
     cat > "$ENV_FILE" <<ENVEOF
 # ===== AINAP Environment Variables =====
@@ -144,12 +138,8 @@ WP_BASE_URL=${WP_BASE_URL}
 WP_USERNAME=${WP_USERNAME}
 WP_APP_PASSWORD=${WP_APP_PASSWORD}
 
-# --- SMTP (msmtp) ---
-SMTP_HOST=${SMTP_HOST}
-SMTP_PORT=${SMTP_PORT}
-SMTP_USER=${SMTP_USER}
-SMTP_PASSWORD=${SMTP_PASSWORD}
-NOTIFY_EMAIL=${NOTIFY_EMAIL}
+# --- Discord 通知 ---
+DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
 ENVEOF
 
     chown "$SERVICE_USER:$SERVICE_USER" "$ENV_FILE"
@@ -158,33 +148,7 @@ ENVEOF
 fi
 
 # =============================================================
-# 6. msmtp 設定
-# =============================================================
-if [[ "${SKIP_ENV:-}" != "true" ]]; then
-    info "msmtp を設定中..."
-    MSMTP_CONF="/etc/msmtprc"
-    cat > "$MSMTP_CONF" <<MSMTPEOF
-# AINAP msmtp configuration
-defaults
-auth           on
-tls            on
-tls_trust_file /etc/ssl/certs/ca-certificates.crt
-logfile        /var/log/msmtp.log
-
-account        default
-host           ${SMTP_HOST}
-port           ${SMTP_PORT}
-from           ${SMTP_USER}
-user           ${SMTP_USER}
-password       ${SMTP_PASSWORD}
-MSMTPEOF
-
-    chmod 600 "$MSMTP_CONF"
-    info "msmtp 設定完了: $MSMTP_CONF"
-fi
-
-# =============================================================
-# 7. systemd ユニット登録
+# 6. systemd ユニット登録
 # =============================================================
 info "systemd ユニットを登録中..."
 cp "$INSTALL_DIR/systemd/ainap.service" /etc/systemd/system/
@@ -196,7 +160,7 @@ systemctl start ainap.timer
 info "systemd timer を有効化しました"
 
 # =============================================================
-# 8. ディレクトリ権限
+# 7. ディレクトリ権限
 # =============================================================
 info "パーミッションを設定中..."
 chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
@@ -205,7 +169,7 @@ chmod -R 750 "$INSTALL_DIR/data"
 chmod -R 750 "$INSTALL_DIR/logs"
 
 # =============================================================
-# 9. 動作確認
+# 8. 動作確認
 # =============================================================
 info ""
 info "===== インストール完了 ====="

@@ -90,15 +90,22 @@ jobs:
           WP_BASE_URL=${{ secrets.WP_BASE_URL }}
           WP_USERNAME=${{ secrets.WP_USERNAME }}
           WP_APP_PASSWORD=${{ secrets.WP_APP_PASSWORD }}
-          SMTP_HOST=${{ secrets.SMTP_HOST }}
-          SMTP_PORT=${{ secrets.SMTP_PORT }}
-          SMTP_USER=${{ secrets.SMTP_USER }}
-          SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
-          NOTIFY_EMAIL=${{ secrets.NOTIFY_EMAIL }}
+          DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL }}
+          PIXABAY_API_KEY=${{ secrets.PIXABAY_API_KEY }}
           ENVEOF
 
           # 各行の先頭スペースを除去
           sed -i 's/^[[:space:]]*//' .env
+
+          # .env のキー一覧を表示（値は非表示）
+          echo "=== .env keys ==="
+          grep -oP '^[A-Z_]+' .env || true
+          echo "=== DISCORD_WEBHOOK_URL set? ==="
+          if grep -q 'DISCORD_WEBHOOK_URL=.' .env; then
+            echo "YES (length: $(grep DISCORD_WEBHOOK_URL .env | cut -d= -f2- | wc -c))"
+          else
+            echo "NO or EMPTY"
+          fi
 
       # ----------------------------------------------------------
       # 5. パイプライン実行
@@ -125,21 +132,20 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # data ブランチを準備
+          # 実行中の DB を退避（ブランチ切替で消えるため）
+          cp data/ainap.db /tmp/ainap.db
+
+          # data ブランチを準備（git switch はパスとの曖昧性なし）
           if git ls-remote --heads origin data | grep -q data; then
             git fetch origin data
-            git checkout data
+            git switch -C data origin/data
           else
-            # orphan ブランチとして作成（コード履歴と分離）
-            git checkout --orphan data
-            git rm -rf . 2>/dev/null || true
+            git switch --orphan data
           fi
 
-          # DB ファイルをコピーしてコミット
+          # 退避した DB を配置
           mkdir -p data
-          git checkout main -- data/ainap.db 2>/dev/null || true
-          # ワーキングツリーから最新の DB をコピー
-          cp "$GITHUB_WORKSPACE/data/ainap.db" data/ainap.db 2>/dev/null || true
+          cp /tmp/ainap.db data/ainap.db
 
           git add data/ainap.db
           if git diff --cached --quiet; then

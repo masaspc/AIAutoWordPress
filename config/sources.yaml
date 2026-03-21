@@ -2,28 +2,31 @@
 sources:
   - name: "TechCrunch"
     url: "https://techcrunch.com/category/artificial-intelligence/"
+    feed_url: "https://techcrunch.com/category/artificial-intelligence/feed/"
     selectors:
-      article_list: "article.post-block"
-      title: "h2 a"
-      link: "h2 a[href]"
+      article_list: "article"
+      title: "h2 a, h3 a"
+      link: "h2 a[href], h3 a[href]"
       date: "time[datetime]"
-      body: ".article-content p"
+      body: ".article-content p, .wp-block-post-content p"
     category_map: "AIニュース"
     enabled: true
 
   - name: "The Verge"
     url: "https://www.theverge.com/ai-artificial-intelligence"
+    feed_url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
     selectors:
-      article_list: "div.duet--content-cards--content-card"
-      title: "a h2"
+      article_list: "article, li:has(h2)"
+      title: "h2 a, a h2"
       link: "a[href]"
       date: "time[datetime]"
-      body: ".duet--article--article-body-component p"
+      body: ".duet--article--article-body-component p, article p"
     category_map: "AIニュース"
     enabled: true
 
   - name: "VentureBeat"
     url: "https://venturebeat.com/category/ai/"
+    feed_url: "https://venturebeat.com/category/ai/feed/"
     selectors:
       article_list: "article"
       title: "h2 a"
@@ -35,10 +38,11 @@ sources:
 
   - name: "Publickey"
     url: "https://www.publickey1.jp/"
+    feed_url: "https://www.publickey1.jp/atom.xml"
     selectors:
       article_list: ".post"
-      title: "h2.entry-title a"
-      link: "h2.entry-title a[href]"
+      title: ".entry-title a, h2.entry-title a"
+      link: ".entry-title a[href], h2.entry-title a[href]"
       date: ".entry-date"
       body: ".entry-content p"
     category_map: "テックニュース"

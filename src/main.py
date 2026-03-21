@@ -23,13 +23,15 @@ from pathlib import Path
 from .config import BASE_DIR, load_settings
 from . import database as db
 from .generator import generate_article
+from .image_fetcher import fetch_image
 from .notifier import (
     notify_dead_letter,
     notify_error,
+    notify_pipeline_complete,
     notify_success,
     send_daily_summary,
 )
-from .publisher import publish_article, retry_queued_posts
+from .publisher import publish_article, retry_queued_posts, upload_featured_image
 from .quality import check_article_quality
 from .scraper import scrape_all_sources
 
@@ -107,7 +109,7 @@ def acquire_lock() -> object | None:
 
 def process_article(article: dict, settings: dict) -> dict | None:
     """単一記事の生成→品質チェック→投稿パイプライン"""
-    article_id = article["id"]
+    article_id = article.get("id") or article.get("article_id")
 
     try:
         # 記事生成
@@ -117,12 +119,26 @@ def process_article(article: dict, settings: dict) -> dict | None:
         # 品質チェック
         checked = check_article_quality(generated, source_url=article.get("url", ""))
 
+        # アイキャッチ画像の取得・アップロード
+        featured_image_id = None
+        image_keywords = generated.get("image_keywords", [])
+        if image_keywords:
+            image_data = fetch_image(image_keywords)
+            if image_data:
+                featured_image_id = upload_featured_image(
+                    image_path=image_data["download_path"],
+                    title=checked["title"],
+                    alt_text=image_data.get("alt", ""),
+                    credit=image_data.get("credit", ""),
+                )
+
         # WordPress 投稿
         category = article.get("category", "")
         result = publish_article(
             checked,
             source_url=article.get("url", ""),
             category_name=category,
+            featured_image_id=featured_image_id,
         )
 
         # DB 記録
@@ -199,7 +215,16 @@ async def run_pipeline() -> None:
         if result:
             published_count += 1
 
+    failed_count = len(unprocessed) - published_count
     logger.info("投稿完了: %d / %d 記事", published_count, len(unprocessed))
+
+    # パイプライン完了通知（毎回送信）
+    notify_pipeline_complete(
+        collected=len(collected),
+        published=published_count,
+        failed=failed_count,
+        retried=len(retry_items),
+    )
 
     # 日次サマリー（21:00 JST 実行時）
     notification_cfg = settings.get("notification", {})

@@ -2,10 +2,10 @@
 
 # --- Claude API ---
 claude:
-  model: "claude-sonnet-4-20250514"
-  max_tokens: 4096
-  temperature: 0.7
-  timeout_sec: 60
+  model: "claude-haiku-4-5-20251001"
+  max_tokens: 8192
+  temperature: 0.75
+  timeout_sec: 90
   max_retries: 3
 
 # --- スクレイピング ---
@@ -20,8 +20,8 @@ scraper:
 
 # --- 記事生成 ---
 generator:
-  article_min_chars: 800
-  article_max_chars: 3000
+  article_min_chars: 600
+  article_max_chars: 4000
   language: "ja"
   include_disclaimer: true
   include_source_link: true
