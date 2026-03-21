@@ -91,6 +91,7 @@ jobs:
           WP_USERNAME=${{ secrets.WP_USERNAME }}
           WP_APP_PASSWORD=${{ secrets.WP_APP_PASSWORD }}
           DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL }}
+          PIXABAY_API_KEY=${{ secrets.PIXABAY_API_KEY }}
           ENVEOF
 
           # 各行の先頭スペースを除去
