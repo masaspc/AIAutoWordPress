@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
-from urllib.parse import quote_plus
 
 import httpx
 
@@ -16,7 +15,8 @@ PIXABAY_API_URL = "https://pixabay.com/api/"
 
 def _get_pixabay_key() -> str | None:
     """Pixabay API キーを取得（未設定なら None）"""
-    return os.environ.get("PIXABAY_API_KEY")
+    key = os.environ.get("PIXABAY_API_KEY", "").strip()
+    return key if key else None
 
 
 def fetch_image(keywords: list[str], min_width: int = 1200) -> dict | None:
@@ -31,10 +31,12 @@ def fetch_image(keywords: list[str], min_width: int = 1200) -> dict | None:
     """
     api_key = _get_pixabay_key()
     if not api_key:
-        logger.info("PIXABAY_API_KEY 未設定: 画像取得をスキップ")
+        logger.warning("PIXABAY_API_KEY 未設定: 画像取得をスキップ")
         return None
 
-    query = "+".join(keywords[:3])
+    # Pixabay は空白区切りのクエリ
+    query = " ".join(keywords[:3])
+    logger.info("Pixabay 画像検索: query='%s'", query)
 
     try:
         params = {
@@ -51,26 +53,43 @@ def fetch_image(keywords: list[str], min_width: int = 1200) -> dict | None:
 
         with httpx.Client(timeout=15.0) as client:
             resp = client.get(PIXABAY_API_URL, params=params)
-            resp.raise_for_status()
+            logger.info("Pixabay API レスポンス: HTTP %s", resp.status_code)
+
+            if resp.status_code != 200:
+                logger.warning("Pixabay API エラー: %s %s", resp.status_code, resp.text[:300])
+                return None
+
             data = resp.json()
 
+        total = data.get("totalHits", 0)
         hits = data.get("hits", [])
+        logger.info("Pixabay 検索結果: %d hits (total=%d)", len(hits), total)
+
         if not hits:
+            # min_width を下げてリトライ
+            if min_width > 800:
+                logger.info("min_width を下げて再検索")
+                return fetch_image(keywords, min_width=640)
             logger.warning("Pixabay 画像が見つかりません: %s", query)
             return None
 
         # 最も適した画像を選択（最初の結果 = 最も人気）
         best = hits[0]
         image_url = best.get("largeImageURL") or best.get("webformatURL")
+        if not image_url:
+            logger.warning("Pixabay: 画像URLが取得できません")
+            return None
+
         alt_text = best.get("tags", "AI technology image")
         credit = f"Image by {best.get('user', 'Pixabay')} on Pixabay"
 
+        logger.info("Pixabay 画像選択: %s (by %s)", image_url, best.get("user", "?"))
+
         # 画像をダウンロード
-        download_path = _download_image(image_url, client=None)
+        download_path = _download_image(image_url)
         if not download_path:
             return None
 
-        logger.info("画像取得成功: %s", image_url)
         return {
             "url": image_url,
             "download_path": download_path,
@@ -83,20 +102,12 @@ def fetch_image(keywords: list[str], min_width: int = 1200) -> dict | None:
         return None
 
 
-def _download_image(url: str, client: httpx.Client | None = None) -> str | None:
+def _download_image(url: str) -> str | None:
     """画像をダウンロードして一時ファイルに保存"""
     try:
-        should_close = False
-        if client is None:
-            client = httpx.Client(timeout=30.0)
-            should_close = True
-
-        try:
-            resp = client.get(url)
+        with httpx.Client(timeout=30.0) as client:
+            resp = client.get(url, follow_redirects=True)
             resp.raise_for_status()
-        finally:
-            if should_close:
-                client.close()
 
         # Content-Type からファイル拡張子を推定
         content_type = resp.headers.get("content-type", "image/jpeg")

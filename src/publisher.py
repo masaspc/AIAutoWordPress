@@ -150,19 +150,27 @@ def upload_featured_image(
         "Content-Type": mime_type,
     }
 
+    logger.info("画像アップロード開始: %s (%s, %d bytes)", file_path, mime_type, file_path.stat().st_size)
+
     try:
         with httpx.Client(timeout=60.0, headers=headers) as client:
             with open(file_path, "rb") as f:
-                resp = client.post(
-                    f"{base_url}/media",
-                    content=f.read(),
-                    auth=auth,
-                )
+                image_bytes = f.read()
+
+            logger.info("画像データ読み込み完了: %d bytes -> POST %s/media", len(image_bytes), base_url)
+
+            resp = client.post(
+                f"{base_url}/media",
+                content=image_bytes,
+                auth=auth,
+            )
+
+            logger.info("画像アップロード応答: HTTP %s", resp.status_code)
 
             if resp.status_code in _NO_RETRY_STATUS:
                 logger.warning(
                     "画像アップロード失敗 (HTTP %s): %s",
-                    resp.status_code, resp.text[:200],
+                    resp.status_code, resp.text[:300],
                 )
                 return None
 

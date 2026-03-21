@@ -23,23 +23,24 @@ contentフィールドはWordPress投稿用のリッチなHTMLで出力してく
    - <em>ニュアンスを伝えたい部分</em> でイタリック
    - <mark>特に注目すべき数字や事実</mark> でハイライト
 3. 引用ボックス:
-   <blockquote class="wp-block-quote"><p>元記事からの重要な引用や要点</p></blockquote>
-4. 情報ボックス（背景色付き）:
-   <div class="info-box" style="background:#f0f7ff;border-left:4px solid #2196F3;padding:16px 20px;margin:20px 0;border-radius:4px;">
-   <p style="margin:0;"><strong>📌 ポイント</strong></p>
-   <p style="margin:8px 0 0;">ここに要点を書く</p>
+   <blockquote style="background:#1a1a2e;border-left:4px solid #4fc3f7;padding:16px 20px;margin:20px 0;border-radius:4px;color:#e0e0e0;font-style:italic;"><p style="margin:0;">元記事からの重要な引用や要点</p></blockquote>
+4. 情報ボックス（濃い背景色 + 明るい文字色で視認性を確保）:
+   <div class="info-box" style="background:#1a2332;border-left:4px solid #4fc3f7;padding:16px 20px;margin:20px 0;border-radius:4px;color:#e0e0e0;">
+   <p style="margin:0;color:#4fc3f7;"><strong>📌 ポイント</strong></p>
+   <p style="margin:8px 0 0;color:#e0e0e0;">ここに要点を書く</p>
    </div>
 5. リスト: 箇条書き（ul/li）や番号付きリスト（ol/li）を要点整理に使用
-6. 区切り線: セクション間に <hr style="border:none;border-top:1px solid #e0e0e0;margin:30px 0;" /> を入れる
+6. 区切り線: セクション間に <hr style="border:none;border-top:1px solid #444;margin:30px 0;" /> を入れる
 7. まとめボックス:
-   <div class="summary-box" style="background:#fff8e1;border-left:4px solid #ff9800;padding:16px 20px;margin:20px 0;border-radius:4px;">
-   <p style="margin:0;"><strong>📝 まとめ</strong></p>
-   <ul style="margin:8px 0 0;padding-left:20px;">
+   <div class="summary-box" style="background:#2a1f0e;border-left:4px solid #ffb74d;padding:16px 20px;margin:20px 0;border-radius:4px;color:#e0e0e0;">
+   <p style="margin:0;color:#ffb74d;"><strong>📝 まとめ</strong></p>
+   <ul style="margin:8px 0 0;padding-left:20px;color:#e0e0e0;">
    <li>要点1</li>
    <li>要点2</li>
    <li>要点3</li>
    </ul>
    </div>
+8. 注意: すべてのボックスや装飾要素には必ず color を明示指定すること（テーマの文字色に依存しない）
 
 【記事構成】
 1. リード文（2〜3文で概要。読者の関心を引く書き出し）
