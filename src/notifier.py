@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 def _send_discord(title: str, description: str, color: int = 0x00FF00) -> bool:
     """Discord Webhook でメッセージを送信"""
     try:
-        webhook_url = get_env("DISCORD_WEBHOOK_URL")
+        webhook_url = get_env("DISCORD_WEBHOOK_URL").strip()
     except EnvironmentError:
         logger.warning("DISCORD_WEBHOOK_URL が未設定のため通知をスキップ")
         return False
@@ -23,6 +23,9 @@ def _send_discord(title: str, description: str, color: int = 0x00FF00) -> bool:
     if not webhook_url or not webhook_url.startswith("https://"):
         logger.error("DISCORD_WEBHOOK_URL が無効です: '%s'", webhook_url[:20] if webhook_url else "(empty)")
         return False
+
+    # デバッグ: URL のドメイン部分のみ表示
+    logger.info("Discord Webhook 送信先: %s...", webhook_url[:60])
 
     embed = {
         "title": title,
@@ -46,6 +49,10 @@ def _send_discord(title: str, description: str, color: int = 0x00FF00) -> bool:
             else:
                 logger.error("Discord Webhook エラー: status=%s", resp.status)
                 return False
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")[:200]
+        logger.error("Discord Webhook HTTPエラー: %s, body=%s", e, body)
+        return False
     except urllib.error.URLError as e:
         logger.error("Discord Webhook 接続エラー: %s", e)
         return False
