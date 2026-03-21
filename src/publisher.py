@@ -55,13 +55,23 @@ def _wp_request(
     base_url = _get_base_url()
     auth = _get_auth()
 
-    with httpx.Client(timeout=30.0) as client:
+    headers = {
+        "User-Agent": "AINAP-Bot/1.0",
+    }
+
+    with httpx.Client(timeout=30.0, headers=headers) as client:
         resp = client.request(
             method,
             f"{base_url}/{endpoint}",
             json=json_data,
             auth=auth,
         )
+        if resp.status_code >= 400:
+            body = resp.text[:500]
+            logger.error(
+                "WP API エラー: %s %s -> %s, body=%s",
+                method, endpoint, resp.status_code, body,
+            )
         resp.raise_for_status()
         return resp.json()
 
@@ -161,12 +171,13 @@ def publish_article(
         if tag_ids:
             post_data["tags"] = tag_ids
 
-    # カスタムフィールド
-    if wp_cfg.get("custom_field_ai_flag", True):
-        post_data["meta"] = {
-            "ai_generated": True,
-            "source_url": source_url,
-        }
+    # カスタムフィールド（register_post_meta 未登録だと 403 になるため無効化）
+    # WordPress 側で meta を登録済みの場合のみ有効にしてください
+    # if wp_cfg.get("custom_field_ai_flag", True):
+    #     post_data["meta"] = {
+    #         "ai_generated": True,
+    #         "source_url": source_url,
+    #     }
 
     logger.info("WordPress 投稿中: %s", article["title"])
 
