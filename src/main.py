@@ -191,31 +191,57 @@ async def run_pipeline() -> None:
     # DB 初期化
     db.init_db()
 
-    # キューに残った JSON ファイルの再投稿
-    queued_results = retry_queued_posts()
-    if queued_results:
-        logger.info("キュー再投稿: %d 件成功", len(queued_results))
+    published_count = 0
+    failed_count = 0
+    retried_count = 0
 
-    # リトライキュー処理
-    retry_items = db.get_retry_queue()
-    for item in retry_items:
-        logger.info("リトライ処理: %s", item.get("title", ""))
-        process_article(item, settings)
+    # キューに残った JSON ファイルの再投稿（max_posts を超えない）
+    if published_count < max_posts:
+        queued_results = retry_queued_posts(limit=max_posts - published_count)
+        if queued_results:
+            published_count += len(queued_results)
+            retried_count += len(queued_results)
+            logger.info("キュー再投稿: %d 件成功", len(queued_results))
+
+    # リトライキュー処理（max_posts を超えない）
+    if published_count < max_posts:
+        retry_items = db.get_retry_queue()
+        for item in retry_items:
+            if published_count >= max_posts:
+                break
+            logger.info("リトライ処理: %s", item.get("title", ""))
+            result = process_article(item, settings)
+            if result:
+                published_count += 1
+                retried_count += 1
+            else:
+                failed_count += 1
 
     # 新規ニュース収集
     collected = await scrape_all_sources()
     logger.info("新規収集: %d 記事", len(collected))
 
-    # 未処理記事から max_posts_per_run 件を処理
-    unprocessed = db.get_unprocessed_articles(limit=max_posts)
-    published_count = 0
+    # 未処理記事から処理（max_posts を超えない + 類似記事スキップ）
+    if published_count < max_posts:
+        remaining = max_posts - published_count
+        # 類似記事スキップ分を考慮して多めに取得
+        candidates = db.get_unprocessed_articles(limit=remaining * 5)
 
-    for article in unprocessed:
-        result = process_article(article, settings)
-        if result:
-            published_count += 1
+        for article in candidates:
+            if published_count >= max_posts:
+                break
 
-    failed_count = len(unprocessed) - published_count
+            # 類似タイトルチェック: 過去7日の投稿と類似していればスキップ
+            if db.is_similar_title_exists(article.get("title", ""), days=7):
+                logger.info("類似記事スキップ: %s", article.get("title", ""))
+                db.update_article_status(article["id"], "skipped_similar")
+                continue
+
+            result = process_article(article, settings)
+            if result:
+                published_count += 1
+            else:
+                failed_count += 1
     logger.info("投稿完了: %d / %d 記事", published_count, len(unprocessed))
 
     # パイプライン完了通知（毎回送信）
@@ -223,7 +249,7 @@ async def run_pipeline() -> None:
         collected=len(collected),
         published=published_count,
         failed=failed_count,
-        retried=len(retry_items),
+        retried=retried_count,
     )
 
     # 日次サマリー（21:00 JST 実行時）
