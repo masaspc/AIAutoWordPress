@@ -24,8 +24,10 @@ def _send_discord(title: str, description: str, color: int = 0x00FF00) -> bool:
         logger.error("DISCORD_WEBHOOK_URL が無効です: '%s'", webhook_url[:20] if webhook_url else "(empty)")
         return False
 
-    # デバッグ: URL のドメイン部分のみ表示
-    logger.info("Discord Webhook 送信先: %s...", webhook_url[:60])
+    # 旧ドメインを新ドメインに正規化
+    webhook_url = webhook_url.replace(
+        "https://discordapp.com/", "https://discord.com/"
+    )
 
     embed = {
         "title": title,
@@ -37,7 +39,10 @@ def _send_discord(title: str, description: str, color: int = 0x00FF00) -> bool:
     req = urllib.request.Request(
         webhook_url,
         data=payload,
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "AINAP-Bot/1.0",
+        },
         method="POST",
     )
 
