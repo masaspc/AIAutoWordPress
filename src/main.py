@@ -108,7 +108,7 @@ def acquire_lock() -> object | None:
 
 def process_article(article: dict, settings: dict) -> dict | None:
     """単一記事の生成→品質チェック→投稿パイプライン"""
-    article_id = article["id"]
+    article_id = article.get("id") or article.get("article_id")
 
     try:
         # 記事生成
