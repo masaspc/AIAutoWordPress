@@ -2,10 +2,10 @@
 
 # --- Claude API ---
 claude:
-  model: "claude-sonnet-4-20250514"
-  max_tokens: 6000
+  model: "claude-haiku-4-5-20251001"
+  max_tokens: 4096
   temperature: 0.75
-  timeout_sec: 90
+  timeout_sec: 60
   max_retries: 3
 
 # --- スクレイピング ---
