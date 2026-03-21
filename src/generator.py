@@ -31,18 +31,82 @@ def _build_prompt(article: dict) -> str:
 
 
 def _parse_json_response(text: str) -> dict:
-    """Claude のレスポンスから JSON を抽出してパースする"""
+    """Claude のレスポンスから JSON を抽出してパースする（途中切れにも対応）"""
     # ```json ... ``` ブロックを探す
     match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
     if match:
-        return json.loads(match.group(1))
+        try:
+            return json.loads(match.group(1))
+        except json.JSONDecodeError:
+            pass
 
     # JSON ブロックがない場合、テキスト全体から { ... } を探す
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if match:
-        return json.loads(match.group(0))
+        try:
+            return json.loads(match.group(0))
+        except json.JSONDecodeError:
+            pass
+
+    # JSON が途中で切れている場合の修復を試みる
+    match = re.search(r"\{.*", text, re.DOTALL)
+    if match:
+        return _repair_truncated_json(match.group(0))
 
     raise ValueError("レスポンスから JSON を抽出できません")
+
+
+def _repair_truncated_json(raw: str) -> dict:
+    """途中切れの JSON を修復する（max_tokens 到達時の対策）"""
+    logger.warning("JSON が途中切れ: 修復を試みます (%d chars)", len(raw))
+
+    # 末尾のバッククォートを除去
+    raw = re.sub(r"```\s*$", "", raw)
+
+    # content フィールドの途中で切れている場合が最も多い
+    # 閉じられていない文字列リテラルを閉じる
+    repaired = raw.rstrip()
+
+    # 末尾の不完全なキー/値を除去して閉じる
+    # 例: ..."content": "...<p>途中    → ..."content": "..."
+    # 閉じていない文字列があるか確認
+    try:
+        json.loads(repaired)
+        return json.loads(repaired)
+    except json.JSONDecodeError:
+        pass
+
+    # 戦略: 末尾から不完全な部分を除去して閉じていく
+    # 1. 閉じていない文字列リテラルを閉じる
+    # 2. 閉じていない配列 [] を閉じる
+    # 3. 閉じていないオブジェクト {} を閉じる
+
+    # まず未閉じの文字列をエスケープして閉じる
+    # content 内の HTML にダブルクォートが含まれるので注意
+    # 最後の完全な key-value ペアの後ろで切る方が安全
+    for trim_len in range(min(2000, len(repaired)), 0, -1):
+        candidate = repaired[:len(repaired) - trim_len]
+        # 最後のカンマまたは完全な値の後で切る
+        # 最後の ", を見つける
+        last_comma = candidate.rfind(",")
+        last_brace = candidate.rfind("}")
+        cut_pos = max(last_comma, last_brace)
+        if cut_pos <= 0:
+            continue
+
+        fragment = candidate[:cut_pos]
+        # 閉じ括弧を補完
+        open_braces = fragment.count("{") - fragment.count("}")
+        open_brackets = fragment.count("[") - fragment.count("]")
+        suffix = "]" * max(0, open_brackets) + "}" * max(0, open_braces)
+        try:
+            result = json.loads(fragment + suffix)
+            logger.info("JSON 修復成功（%d文字切り捨て）", len(repaired) - cut_pos)
+            return result
+        except json.JSONDecodeError:
+            continue
+
+    raise ValueError("途中切れ JSON の修復に失敗しました")
 
 
 @retry(
@@ -78,6 +142,13 @@ def _call_claude(prompt: str, settings: dict) -> tuple[str, int, int]:
     response = stream.get_final_message()
     tokens_in = response.usage.input_tokens
     tokens_out = response.usage.output_tokens
+    stop_reason = response.stop_reason
+
+    if stop_reason == "max_tokens":
+        logger.warning(
+            "Claude 応答が max_tokens で切れました (output=%d tokens)。JSON 修復を試みます。",
+            tokens_out,
+        )
 
     return "".join(collected_text), tokens_in, tokens_out
 
