@@ -242,7 +242,7 @@ async def run_pipeline() -> None:
                 published_count += 1
             else:
                 failed_count += 1
-    logger.info("投稿完了: %d / %d 記事", published_count, len(unprocessed))
+    logger.info("投稿完了: %d 記事 (失敗: %d)", published_count, failed_count)
 
     # パイプライン完了通知（毎回送信）
     notify_pipeline_complete(
