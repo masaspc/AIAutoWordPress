@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -220,6 +221,42 @@ def get_today_posts() -> list[dict]:
             (f"{today}%",),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def _extract_keywords(text: str) -> set[str]:
+    """タイトルからキーワードを抽出（ストップワード除去）"""
+    # 英数字・日本語の単語を抽出（2文字以上）
+    words = set(re.findall(r"[a-zA-Z]{2,}|[\u3040-\u9fff]{2,}", text.lower()))
+    # 一般的なストップワードを除去
+    stop = {"the", "and", "for", "with", "from", "that", "this", "are", "was", "has",
+            "have", "will", "can", "about", "into", "its", "new", "how", "what",
+            "する", "ある", "いる", "なる", "できる", "について", "における", "として"}
+    return words - stop
+
+
+def is_similar_title_exists(title: str, days: int = 7, threshold: float = 0.4) -> bool:
+    """過去の投稿タイトルと類似するものがあるか判定
+
+    キーワードの重複率が threshold 以上なら類似とみなす。
+    """
+    keywords = _extract_keywords(title)
+    if not keywords:
+        return False
+
+    since = (datetime.utcnow() - timedelta(days=days)).isoformat()
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT title FROM posts WHERE published_at >= ?", (since,)
+        ).fetchall()
+
+    for row in rows:
+        existing_kw = _extract_keywords(row["title"])
+        if not existing_kw:
+            continue
+        overlap = len(keywords & existing_kw) / max(len(keywords), len(existing_kw))
+        if overlap >= threshold:
+            return True
+    return False
 
 
 def get_dead_letter_entries() -> list[dict]:

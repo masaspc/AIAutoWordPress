@@ -322,13 +322,15 @@ def publish_article(
         raise
 
 
-def retry_queued_posts() -> list[dict]:
-    """キューに保存された投稿を再試行"""
+def retry_queued_posts(limit: int = 1) -> list[dict]:
+    """キューに保存された投稿を再試行（最大 limit 件）"""
     results = []
     if not QUEUE_DIR.exists():
         return results
 
     for json_file in sorted(QUEUE_DIR.glob("*.json")):
+        if len(results) >= limit:
+            break
         try:
             with open(json_file, encoding="utf-8") as f:
                 data = json.load(f)
