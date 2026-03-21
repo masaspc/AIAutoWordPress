@@ -22,6 +22,18 @@ logger = logging.getLogger(__name__)
 
 QUEUE_DIR = BASE_DIR / "data" / "queue"
 
+# リトライすべきでない HTTP ステータスコード（WAF/認証エラーなど）
+_NO_RETRY_STATUS = {401, 403, 404, 405}
+
+
+class WPFatalError(Exception):
+    """リトライ不要な WordPress エラー（WAF ブロック等）"""
+
+    def __init__(self, status_code: int, body: str):
+        self.status_code = status_code
+        self.body = body
+        super().__init__(f"WP API {status_code}: {body[:200]}")
+
 
 def _get_auth() -> tuple[str, str]:
     """WordPress の認証情報を返す"""
@@ -51,12 +63,22 @@ def _generate_slug(title: str) -> str:
 def _wp_request(
     method: str, endpoint: str, json_data: dict | None = None
 ) -> dict:
-    """WordPress REST API へのリクエスト（リトライ付き）"""
+    """WordPress REST API へのリクエスト（リトライ付き）
+
+    403/401 等の WAF・認証エラーは即座に WPFatalError を送出し、
+    無駄なリトライを回避する。
+    """
     base_url = _get_base_url()
     auth = _get_auth()
 
+    # ブラウザに近いヘッダーで XSERVER WAF を回避
     headers = {
-        "User-Agent": "AINAP-Bot/1.0",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/131.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/json",
     }
 
     with httpx.Client(timeout=30.0, headers=headers) as client:
@@ -66,6 +88,15 @@ def _wp_request(
             json=json_data,
             auth=auth,
         )
+
+        if resp.status_code in _NO_RETRY_STATUS:
+            body = resp.text[:500]
+            logger.error(
+                "WP API 致命的エラー（リトライ不可）: %s %s -> %s, body=%s",
+                method, endpoint, resp.status_code, body,
+            )
+            raise WPFatalError(resp.status_code, body)
+
         if resp.status_code >= 400:
             body = resp.text[:500]
             logger.error(
@@ -88,7 +119,7 @@ def _resolve_category_id(category_name: str) -> int | None:
         result = _wp_request("POST", "categories", {"name": category_name})
         return result.get("id")
     except Exception:
-        logger.warning("カテゴリー解決失敗: %s", category_name, exc_info=True)
+        logger.warning("カテゴリー解決失敗: %s（デフォルトカテゴリーを使用）", category_name)
         return None
 
 
@@ -107,8 +138,11 @@ def _resolve_tag_ids(tags: list[str], auto_create: bool = True) -> list[int]:
             if not found and auto_create:
                 result = _wp_request("POST", "tags", {"name": tag_name})
                 tag_ids.append(result["id"])
+        except WPFatalError:
+            logger.warning("タグ解決: WAFブロックのためスキップ: %s", tag_name)
+            break  # WAF にブロックされている場合、残りのタグも同様なのでループ終了
         except Exception:
-            logger.warning("タグ解決失敗: %s", tag_name, exc_info=True)
+            logger.warning("タグ解決失敗: %s", tag_name)
     return tag_ids
 
 
@@ -163,21 +197,13 @@ def publish_article(
         categories.append(default_id)
     post_data["categories"] = categories
 
-    # タグ
+    # タグ（WAF ブロック時はスキップ）
     tags = article.get("tags", [])
     if tags:
         auto_create = wp_cfg.get("auto_create_tags", True)
         tag_ids = _resolve_tag_ids(tags, auto_create=auto_create)
         if tag_ids:
             post_data["tags"] = tag_ids
-
-    # カスタムフィールド（register_post_meta 未登録だと 403 になるため無効化）
-    # WordPress 側で meta を登録済みの場合のみ有効にしてください
-    # if wp_cfg.get("custom_field_ai_flag", True):
-    #     post_data["meta"] = {
-    #         "ai_generated": True,
-    #         "source_url": source_url,
-    #     }
 
     logger.info("WordPress 投稿中: %s", article["title"])
 
