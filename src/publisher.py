@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -107,6 +108,92 @@ def _wp_request(
         return resp.json()
 
 
+def upload_featured_image(
+    image_path: str, title: str, alt_text: str = "", credit: str = ""
+) -> int | None:
+    """画像をWordPressメディアライブラリにアップロードし、メディアIDを返す
+
+    Args:
+        image_path: ローカル画像ファイルパス
+        title: 画像タイトル（記事タイトルを使用）
+        alt_text: alt属性テキスト
+        credit: クレジット表記
+
+    Returns:
+        メディアID or None（失敗時）
+    """
+    base_url = _get_base_url()
+    auth = _get_auth()
+
+    file_path = Path(image_path)
+    if not file_path.exists():
+        logger.warning("画像ファイルが見つかりません: %s", image_path)
+        return None
+
+    # Content-Type を拡張子から判定
+    ext_to_mime = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+    }
+    mime_type = ext_to_mime.get(file_path.suffix.lower(), "image/jpeg")
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/131.0.0.0 Safari/537.36"
+        ),
+        "Content-Disposition": f'attachment; filename="{file_path.name}"',
+        "Content-Type": mime_type,
+    }
+
+    try:
+        with httpx.Client(timeout=60.0, headers=headers) as client:
+            with open(file_path, "rb") as f:
+                resp = client.post(
+                    f"{base_url}/media",
+                    content=f.read(),
+                    auth=auth,
+                )
+
+            if resp.status_code in _NO_RETRY_STATUS:
+                logger.warning(
+                    "画像アップロード失敗 (HTTP %s): %s",
+                    resp.status_code, resp.text[:200],
+                )
+                return None
+
+            resp.raise_for_status()
+            media_data = resp.json()
+            media_id = media_data.get("id")
+
+        # alt_text を設定
+        if media_id and alt_text:
+            try:
+                _wp_request("POST", f"media/{media_id}", {
+                    "alt_text": alt_text,
+                    "caption": credit,
+                })
+            except Exception:
+                logger.warning("画像メタデータ更新失敗（投稿は続行）")
+
+        logger.info("画像アップロード成功: media_id=%s", media_id)
+        return media_id
+
+    except Exception:
+        logger.warning("画像アップロード失敗", exc_info=True)
+        return None
+    finally:
+        # 一時ファイルを削除
+        try:
+            os.unlink(image_path)
+        except OSError:
+            pass
+
+
 def _resolve_category_id(category_name: str) -> int | None:
     """カテゴリー名からIDを解決。存在しない場合は作成"""
     try:
@@ -158,7 +245,10 @@ def _save_to_queue(article: dict, source_url: str) -> None:
 
 
 def publish_article(
-    article: dict, source_url: str = "", category_name: str = ""
+    article: dict,
+    source_url: str = "",
+    category_name: str = "",
+    featured_image_id: int | None = None,
 ) -> dict:
     """WordPress に記事を投稿
 
@@ -166,6 +256,7 @@ def publish_article(
         article: generator が返す辞書（title, content, excerpt, tags, slug）
         source_url: 元記事URL
         category_name: カテゴリー名
+        featured_image_id: アイキャッチ画像のメディアID
 
     Returns:
         {"wp_post_id": int, "wp_url": str}
@@ -185,6 +276,10 @@ def publish_article(
         "status": wp_cfg.get("post_status", "publish"),
         "slug": slug,
     }
+
+    # アイキャッチ画像
+    if featured_image_id:
+        post_data["featured_media"] = featured_image_id
 
     # カテゴリー
     categories = []

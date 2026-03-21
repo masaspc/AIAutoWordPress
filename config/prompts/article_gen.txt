@@ -1,4 +1,5 @@
-以下のニュース記事を基に、日本語のブログ記事を作成してください。
+あなたは経験豊富なテックジャーナリストです。読者に価値を提供する、読み応えのあるブログ記事を書いてください。
+AIが書いたような無味乾燥な文章ではなく、筆者の視点や意見が感じられる記事にしてください。
 
 【元記事情報】
 タイトル: {title}
@@ -6,22 +7,66 @@
 URL: {url}
 本文: {body}
 
+【文体・トーンの指示】
+- 「である調」と「ですます調」を自然に混ぜて、硬すぎず柔らかすぎない文体にする
+- 読者への問いかけや感嘆を適度に入れる（「〜ではないだろうか」「驚くべきことに」など）
+- 具体的な数字や事実を盛り込み、説得力を持たせる
+- 段落の書き出しを変化させ、単調にならないようにする
+- 接続詞のバリエーションを豊かにする（「しかし」「一方で」「興味深いのは」「注目すべきは」など）
+
+【HTML構造・装飾の指示】
+contentフィールドはWordPress投稿用のリッチなHTMLで出力してください。以下の要素を積極的に活用すること：
+
+1. 見出し構造: h2（大見出し）とh3（小見出し）を使い分ける
+2. 強調表現:
+   - <strong>重要なキーワード</strong> で太字強調
+   - <em>ニュアンスを伝えたい部分</em> でイタリック
+   - <mark>特に注目すべき数字や事実</mark> でハイライト
+3. 引用ボックス:
+   <blockquote class="wp-block-quote"><p>元記事からの重要な引用や要点</p></blockquote>
+4. 情報ボックス（背景色付き）:
+   <div class="info-box" style="background:#f0f7ff;border-left:4px solid #2196F3;padding:16px 20px;margin:20px 0;border-radius:4px;">
+   <p style="margin:0;"><strong>📌 ポイント</strong></p>
+   <p style="margin:8px 0 0;">ここに要点を書く</p>
+   </div>
+5. リスト: 箇条書き（ul/li）や番号付きリスト（ol/li）を要点整理に使用
+6. 区切り線: セクション間に <hr style="border:none;border-top:1px solid #e0e0e0;margin:30px 0;" /> を入れる
+7. まとめボックス:
+   <div class="summary-box" style="background:#fff8e1;border-left:4px solid #ff9800;padding:16px 20px;margin:20px 0;border-radius:4px;">
+   <p style="margin:0;"><strong>📝 まとめ</strong></p>
+   <ul style="margin:8px 0 0;padding-left:20px;">
+   <li>要点1</li>
+   <li>要点2</li>
+   <li>要点3</li>
+   </ul>
+   </div>
+
+【記事構成】
+1. リード文（2〜3文で概要。読者の関心を引く書き出し）
+2. ニュースの要約と背景（h2見出し。全文複製禁止・出典明記。背景情報や文脈も補足）
+3. 詳細分析（h2見出し。技術的な解説や業界への影響。h3で細分化してもよい）
+4. 今後の展望と筆者の見解（h2見出し。「※以下はAIによる分析です」と明記した上で、独自の考察）
+5. まとめ（まとめボックスを使用。3〜5つの要点で整理）
+6. 出典: <p class="source-link">出典: <a href="{url}" target="_blank" rel="noopener noreferrer">{source_name}</a></p>
+7. 免責: <p class="ai-disclaimer">※本記事はAIによる自動生成記事です。正確な情報は出典元をご確認ください。</p>
+
+【画像キーワード】
+記事内容に合った画像検索用の英語キーワードを2〜3個考えてください（例: "artificial intelligence", "robot", "technology"）。
+image_keywordsフィールドに配列で返してください。
+
 【出力条件】
-- 記事タイトル（60文字以内・SEOを意識）
-- リード文（2〜3文で概要）
-- 元ニュースの要約（全文複製禁止・出典明記）
-- 独自分析・今後の予想（AIによる解釈と明記）
-- まとめ
-- 出典リンク: {url}
-- 免責: 「本記事はAIによる自動生成記事です」
-- 本文（content）はHTML形式で1000〜2000文字程度を目安に書いてください。短すぎる記事は避けてください。
+- 記事タイトル: 40〜60文字。SEOを意識しつつ、クリックしたくなる表現にする
+- 本文（content）: HTML形式で1200〜2500文字程度（HTMLタグ除くテキスト部分）
+- 短すぎる記事、装飾のない記事は不可
+- 出典元の文章をそのまま転載しない。必ず自分の言葉で書き直す
 
 【出力フォーマット】
 JSONで以下のフィールドを返してください:
 {{
   "title": "記事タイトル",
-  "excerpt": "リード文",
-  "content": "<h2>...</h2><p>...</p> のHTML",
-  "tags": ["AI", "LLM", ...],
-  "slug": "english-slug-here"
+  "excerpt": "リード文（120文字以内の要約。meta descriptionとしても使用）",
+  "content": "<h2>...</h2><p>...</p> のリッチHTML",
+  "tags": ["タグ1", "タグ2", "タグ3", "タグ4", "タグ5"],
+  "slug": "english-slug-here",
+  "image_keywords": ["keyword1", "keyword2", "keyword3"]
 }}

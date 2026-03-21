@@ -136,5 +136,9 @@ def generate_article(article: dict) -> dict:
     if not result.get("slug"):
         result["slug"] = ""
 
+    # image_keywords が無い場合はデフォルト
+    if not result.get("image_keywords"):
+        result["image_keywords"] = ["AI", "technology"]
+
     logger.info("記事生成完了: %s", result["title"])
     return result
