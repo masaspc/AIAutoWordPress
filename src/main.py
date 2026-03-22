@@ -16,6 +16,7 @@ import fcntl
 import json
 import logging
 import logging.handlers
+import random
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -224,8 +225,9 @@ async def run_pipeline() -> None:
     # 未処理記事から処理（max_posts を超えない + 類似記事スキップ）
     if published_count < max_posts:
         remaining = max_posts - published_count
-        # 類似記事スキップ分を考慮して多めに取得
-        candidates = db.get_unprocessed_articles(limit=remaining * 5)
+        # 類似記事スキップ分を考慮して多めに取得し、シャッフルで多様性を確保
+        candidates = db.get_unprocessed_articles(limit=remaining * 10)
+        random.shuffle(candidates)
 
         for article in candidates:
             if published_count >= max_posts:
