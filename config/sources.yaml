@@ -45,19 +45,19 @@ sources:
       link: ".entry-title a[href], h2.entry-title a[href]"
       date: ".entry-date"
       body: ".entry-content p"
-    category_map: "テックニュース"
-    enabled: true
+    category_map: "AIニュース"
+    enabled: false
 
   - name: "Ars Technica"
     url: "https://arstechnica.com/ai/"
-    feed_url: "https://feeds.arstechnica.com/arstechnica/technology-lab"
+    feed_url: "https://arstechnica.com/ai/feed/"
     selectors:
       article_list: "article"
       title: "h2 a"
       link: "h2 a[href]"
       date: "time[datetime]"
       body: ".article-content p"
-    category_map: "テックニュース"
+    category_map: "AIニュース"
     enabled: true
 
   - name: "MIT Technology Review"
@@ -129,8 +129,8 @@ sources:
       link: "h2 a[href]"
       date: "time[datetime]"
       body: ".cntimage p"
-    category_map: "テックニュース"
-    enabled: true
+    category_map: "AIニュース"
+    enabled: false
 
   - name: "ITmedia AI+"
     url: "https://www.itmedia.co.jp/aiplus/"
