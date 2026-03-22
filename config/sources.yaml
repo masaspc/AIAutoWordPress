@@ -45,5 +45,101 @@ sources:
       link: ".entry-title a[href], h2.entry-title a[href]"
       date: ".entry-date"
       body: ".entry-content p"
-    category_map: "テックニュース"
+    category_map: "AIニュース"
+    enabled: false
+
+  - name: "Ars Technica"
+    url: "https://arstechnica.com/ai/"
+    feed_url: "https://arstechnica.com/ai/feed/"
+    selectors:
+      article_list: "article"
+      title: "h2 a"
+      link: "h2 a[href]"
+      date: "time[datetime]"
+      body: ".article-content p"
+    category_map: "AIニュース"
+    enabled: true
+
+  - name: "MIT Technology Review"
+    url: "https://www.technologyreview.com/topic/artificial-intelligence/"
+    feed_url: "https://www.technologyreview.com/feed/"
+    selectors:
+      article_list: "article"
+      title: "h2 a, h3 a"
+      link: "h2 a[href], h3 a[href]"
+      date: "time[datetime]"
+      body: ".article-body p"
+    category_map: "AIニュース"
+    enabled: true
+
+  - name: "Wired"
+    url: "https://www.wired.com/tag/artificial-intelligence/"
+    feed_url: "https://www.wired.com/feed/tag/ai/latest/rss"
+    selectors:
+      article_list: "article"
+      title: "h2 a, h3 a"
+      link: "a[href]"
+      date: "time[datetime]"
+      body: ".body__inner-container p"
+    category_map: "AIニュース"
+    enabled: true
+
+  - name: "The Register"
+    url: "https://www.theregister.com/software/ai/"
+    feed_url: "https://www.theregister.com/software/ai/headlines.atom"
+    selectors:
+      article_list: "article"
+      title: "h2 a, h4 a"
+      link: "h2 a[href], h4 a[href]"
+      date: "time[datetime]"
+      body: "#article p, .article_body p"
+    category_map: "AIニュース"
+    enabled: true
+
+  - name: "ZDNET"
+    url: "https://www.zdnet.com/topic/artificial-intelligence/"
+    feed_url: "https://www.zdnet.com/topic/artificial-intelligence/rss.xml"
+    selectors:
+      article_list: "article"
+      title: "h3 a"
+      link: "h3 a[href]"
+      date: "time[datetime]"
+      body: ".article-body p"
+    category_map: "AIニュース"
+    enabled: true
+
+  - name: "IEEE Spectrum"
+    url: "https://spectrum.ieee.org/topic/artificial-intelligence/"
+    feed_url: "https://spectrum.ieee.org/feeds/topic/artificial-intelligence.rss"
+    selectors:
+      article_list: "article"
+      title: "h2 a, h3 a"
+      link: "h2 a[href], h3 a[href]"
+      date: "time[datetime]"
+      body: ".article-text p"
+    category_map: "AIニュース"
+    enabled: true
+
+  - name: "GIGAZINE"
+    url: "https://gigazine.net/"
+    feed_url: "https://gigazine.net/news/rss_2.0/"
+    selectors:
+      article_list: "article"
+      title: "h2 a"
+      link: "h2 a[href]"
+      date: "time[datetime]"
+      body: ".cntimage p"
+    category_map: "AIニュース"
+    enabled: false
+
+  - name: "ITmedia AI+"
+    url: "https://www.itmedia.co.jp/aiplus/"
+    feed_url: "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml"
+    selectors:
+      article_list: "article"
+      title: "h3 a"
+      link: "h3 a[href]"
+      date: "time[datetime]"
+      body: ".article-body p"
+    category_map: "AIニュース"
     enabled: true
