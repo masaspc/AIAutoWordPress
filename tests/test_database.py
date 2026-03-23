@@ -96,3 +96,96 @@ class TestFailedQueue:
         db.enqueue_failed(aid, "APIError", "err1")
         db.enqueue_failed(aid, "APIError", "err2")
         # retry_count が 2 になっているはず
+
+    def test_retry_queue_excludes_published(self):
+        """投稿済み記事はリトライキューに含まれない"""
+        aid = db.save_article(url="https://x.com/pub1", title="Published", source_name="S")
+        db.enqueue_failed(aid, "APIError", "temp error")
+        # next_retry を過去に設定して即取得可能にする
+        with db.get_connection() as conn:
+            conn.execute(
+                "UPDATE failed_queue SET next_retry = '2000-01-01T00:00:00'"
+            )
+
+        # まだ collected なのでリトライ対象
+        queue = db.get_retry_queue()
+        assert len(queue) == 1
+
+        # published に変更 → リトライ対象外
+        db.update_article_status(aid, "published")
+        queue = db.get_retry_queue()
+        assert len(queue) == 0
+
+    def test_retry_queue_excludes_skipped_similar(self):
+        """類似スキップ済み記事はリトライキューに含まれない"""
+        aid = db.save_article(url="https://x.com/sim1", title="Similar", source_name="S")
+        db.enqueue_failed(aid, "APIError", "temp error")
+        with db.get_connection() as conn:
+            conn.execute(
+                "UPDATE failed_queue SET next_retry = '2000-01-01T00:00:00'"
+            )
+
+        db.update_article_status(aid, "skipped_similar")
+        queue = db.get_retry_queue()
+        assert len(queue) == 0
+
+    def test_remove_from_queue(self):
+        """キューからの削除が正しく動作する"""
+        aid = db.save_article(url="https://x.com/rm1", title="Remove", source_name="S")
+        db.enqueue_failed(aid, "APIError", "error")
+        with db.get_connection() as conn:
+            conn.execute(
+                "UPDATE failed_queue SET next_retry = '2000-01-01T00:00:00'"
+            )
+
+        queue = db.get_retry_queue()
+        assert len(queue) == 1
+
+        db.remove_from_queue(queue[0]["queue_id"])
+        queue = db.get_retry_queue()
+        assert len(queue) == 0
+
+
+class TestSimilarTitle:
+    def test_similar_english_titles(self):
+        """英語の類似タイトルを検出"""
+        aid = db.save_article(
+            url="https://x.com/s1",
+            title="Microsoft rolls back Copilot AI features on Windows",
+            source_name="S",
+        )
+        db.update_article_status(aid, "published")
+        db.save_post(aid, 1, "https://wp.example.com/?p=1",
+                     "Microsoft、Copilotの過剰統合を見直し", 100, 200)
+
+        # 同じトピックの英語タイトル → articles テーブル経由で類似検出
+        assert db.is_similar_title_exists(
+            "Microsoft reverses Copilot AI bloat on Windows"
+        )
+
+    def test_dissimilar_titles(self):
+        """異なるトピックは類似とみなさない"""
+        aid = db.save_article(
+            url="https://x.com/s2",
+            title="Microsoft rolls back Copilot AI features",
+            source_name="S",
+        )
+        db.update_article_status(aid, "published")
+
+        assert not db.is_similar_title_exists(
+            "Google launches new Gemini model for Android"
+        )
+
+    def test_similar_check_includes_published_articles(self):
+        """投稿済み articles の原題も比較対象になる"""
+        aid = db.save_article(
+            url="https://x.com/s3",
+            title="OpenAI launches GPT-5 with enhanced reasoning capabilities",
+            source_name="TechCrunch",
+        )
+        db.update_article_status(aid, "published")
+
+        # 別ソースからの同トピック記事
+        assert db.is_similar_title_exists(
+            "OpenAI releases GPT-5 with improved reasoning features"
+        )

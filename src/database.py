@@ -181,7 +181,10 @@ def enqueue_failed(article_id: int, error_type: str, error_msg: str) -> None:
 
 
 def get_retry_queue() -> list[dict]:
-    """リトライ対象（retry_count < 5 かつ next_retry が現在時刻以前）を取得"""
+    """リトライ対象（retry_count < 5 かつ next_retry が現在時刻以前）を取得
+
+    投稿済み（published）の記事は除外する。
+    """
     now = datetime.utcnow().isoformat()
     with get_connection() as conn:
         rows = conn.execute(
@@ -190,6 +193,7 @@ def get_retry_queue() -> list[dict]:
                FROM failed_queue fq
                JOIN articles a ON a.id = fq.article_id
                WHERE fq.retry_count < 5 AND fq.next_retry <= ?
+                 AND a.status NOT IN ('published', 'skipped_similar')
                ORDER BY fq.next_retry ASC""",
             (now,),
         ).fetchall()
