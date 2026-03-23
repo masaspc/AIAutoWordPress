@@ -210,11 +210,20 @@ async def run_pipeline() -> None:
         for item in retry_items:
             if published_count >= max_posts:
                 break
+
+            # リトライ対象にも類似チェックを適用
+            if db.is_similar_title_exists(item.get("title", ""), days=7):
+                logger.info("リトライ類似スキップ: %s", item.get("title", ""))
+                db.update_article_status(item["article_id"], "skipped_similar")
+                db.remove_from_queue(item["queue_id"])
+                continue
+
             logger.info("リトライ処理: %s", item.get("title", ""))
             result = process_article(item, settings)
             if result:
                 published_count += 1
                 retried_count += 1
+                db.remove_from_queue(item["queue_id"])
             else:
                 failed_count += 1
 
