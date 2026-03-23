@@ -238,6 +238,8 @@ def is_similar_title_exists(title: str, days: int = 7, threshold: float = 0.4) -
     """過去の投稿タイトルと類似するものがあるか判定
 
     キーワードの重複率が threshold 以上なら類似とみなす。
+    posts テーブル（生成済み日本語タイトル）と articles テーブル（英語原題）の
+    両方を比較対象にすることで、言語をまたぐ重複も検出する。
     """
     keywords = _extract_keywords(title)
     if not keywords:
@@ -245,12 +247,20 @@ def is_similar_title_exists(title: str, days: int = 7, threshold: float = 0.4) -
 
     since = (datetime.utcnow() - timedelta(days=days)).isoformat()
     with get_connection() as conn:
-        rows = conn.execute(
+        # 生成済みタイトル（日本語）との比較
+        post_rows = conn.execute(
             "SELECT title FROM posts WHERE published_at >= ?", (since,)
         ).fetchall()
+        # 投稿済み記事の原題（英語）との比較
+        article_rows = conn.execute(
+            "SELECT title FROM articles WHERE status IN ('published', 'generated') "
+            "AND collected_at >= ?",
+            (since,),
+        ).fetchall()
 
-    for row in rows:
-        existing_kw = _extract_keywords(row["title"])
+    all_titles = [r["title"] for r in post_rows] + [r["title"] for r in article_rows]
+    for existing_title in all_titles:
+        existing_kw = _extract_keywords(existing_title)
         if not existing_kw:
             continue
         overlap = len(keywords & existing_kw) / max(len(keywords), len(existing_kw))
